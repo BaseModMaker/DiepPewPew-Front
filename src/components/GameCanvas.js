@@ -8,6 +8,7 @@ import './GameCanvas.css';
 const GameCanvas = () => {
   const containerRef = useRef(null);
   const wsRef = useRef(null);
+  const connectWsRef = useRef(null); // <-- new: expose connect function
   const keysPressed = useRef({});
   const gameObjects = useRef({});
   const [serverUrl, setServerUrl] = useState(() => {
@@ -55,18 +56,24 @@ const GameCanvas = () => {
     );
     composer.addPass(bloomPass);
 
-    // Connect if we already have a URL
-    if (serverUrl) {
-      connectWs(serverUrl);
-    }
-
     function connectWs(url) {
       // cleanup previous socket if exists
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         try { wsRef.current.close(); } catch (e) {}
       }
       setStatus('connecting');
-      const ws = new WebSocket(url);
+
+      let ws;
+      try {
+        ws = new WebSocket(url);
+      } catch (err) {
+        // invalid URL or immediate failure
+        console.error('WebSocket constructor failed:', err);
+        wsRef.current = null;
+        setStatus('offline');
+        return;
+      }
+
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -85,13 +92,29 @@ const GameCanvas = () => {
 
       ws.onerror = (error) => {
         console.error('WebSocket error:', error);
-        setStatus('error');
+        // mark as offline so user knows server wasn't reachable
+        setStatus('offline');
+        // Close if still open to clean up
+        try { ws.close(); } catch (e) {}
+        // clear ref if it was this socket
+        if (wsRef.current === ws) wsRef.current = null;
       };
 
       ws.onclose = () => {
         console.log('Disconnected from server');
-        setStatus('disconnected');
+        // If we previously saw an error during connect, status may already be 'offline'
+        // Otherwise show disconnected
+        setStatus(prev => (prev === 'offline' ? 'offline' : 'disconnected'));
+        if (wsRef.current === ws) wsRef.current = null;
       };
+    }
+
+    // expose connect function so UI can trigger reconnect outside effect
+    connectWsRef.current = connectWs;
+
+    // Connect if we already have a URL
+    if (serverUrl) {
+      connectWs(serverUrl);
     }
 
     // Keyboard input
@@ -213,6 +236,20 @@ const GameCanvas = () => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) wsRef.current.close();
   };
 
+  // new: manual reconnect handler
+  const onReconnect = () => {
+    if (!serverUrl) return;
+    if (connectWsRef.current) {
+      connectWsRef.current(serverUrl);
+    } else {
+      // defensive: try setting status and wait for effect to populate ref
+      setStatus('connecting');
+      setTimeout(() => {
+        try { connectWsRef.current && connectWsRef.current(serverUrl); } catch (e) {}
+      }, 100);
+    }
+  };
+
   return (
     <div className="game-canvas" ref={containerRef}>
       <div className="server-overlay">
@@ -220,6 +257,12 @@ const GameCanvas = () => {
           <input name="server" defaultValue={serverUrl} placeholder="ws://your-ip:8080 or wss://host:port" />
           <button type="submit">Connect</button>
           <button type="button" onClick={onClearServer}>Clear</button>
+          {/* show reconnect when there's a server set but no active connection */}
+          {serverUrl && status !== 'connected' && (
+            <button type="button" onClick={onReconnect} style={{ marginLeft: 6 }}>
+              Reconnect
+            </button>
+          )}
         </form>
         <div className="status">Status: {status}{serverUrl ? ` — ${serverUrl}` : ''}</div>
         <div className="hint">If your server runs on your machine and you are visiting the page from GitHub Pages, set the server to ws://YOUR_PUBLIC_IP:8080 or use a tunnel (ngrok) and enter its wss:// address.</div>
