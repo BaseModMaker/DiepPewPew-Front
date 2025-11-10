@@ -3,4 +3,47 @@
   height: 100%;
   margin: 0;
   padding: 0;
+  position: relative;
+}
+
+/* connection overlay */
+.server-overlay {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  z-index: 10;
+  background: rgba(0,0,0,0.6);
+  color: #cfefff;
+  padding: 8px;
+  border-radius: 6px;
+  font-family: sans-serif;
+  max-width: 360px;
+}
+.server-overlay input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px;
+  margin-bottom: 6px;
+  border-radius: 4px;
+  border: 1px solid #2a2a2a;
+  background: rgba(255,255,255,0.03);
+  color: #e6f9ff;
+}
+.server-overlay button {
+  margin-right: 6px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: none;
+  background: #0ff;
+  color: #000;
+  cursor: pointer;
+}
+.server-overlay .status {
+  margin-top: 6px;
+  font-size: 13px;
+}
+.server-overlay .hint {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #9bd;
 }
