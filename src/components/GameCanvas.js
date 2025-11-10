@@ -8,24 +8,11 @@ import './GameCanvas.css';
 const GameCanvas = () => {
   const containerRef = useRef(null);
   const wsRef = useRef(null);
-  const connectWsRef = useRef(null); // <-- new: expose connect function
+  const connectWsRef = useRef(null);
   const keysPressed = useRef({});
   const gameObjects = useRef({});
-  const [serverUrl, setServerUrl] = useState(() => {
-    // priority: query param ?server= -> localStorage -> sensible default for local dev
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const q = params.get('server');
-      if (q) return q;
-    } catch (e) {}
-    const saved = localStorage.getItem('gameServer');
-    if (saved) return saved;
-    // default to localhost for dev; deployed site should set this manually
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-      return 'ws://localhost:8080';
-    }
-    return '';
-  });
+  // always connect to localhost per request
+  const serverAddress = 'ws://localhost:8080';
   const [status, setStatus] = useState('disconnected');
 
   useEffect(() => {
@@ -112,10 +99,8 @@ const GameCanvas = () => {
     // expose connect function so UI can trigger reconnect outside effect
     connectWsRef.current = connectWs;
 
-    // Connect if we already have a URL
-    if (serverUrl) {
-      connectWs(serverUrl);
-    }
+    // Always connect to localhost on mount
+    connectWs(serverAddress);
 
     // Keyboard input
     const handleKeyDown = (e) => {
@@ -175,7 +160,7 @@ const GameCanvas = () => {
     };
 
     // ...existing code...
-  }, [serverUrl]); // reconnect when serverUrl changes
+  }, []); // run once, always connect to localhost
 
   const updateGameState = (data, scene, objects) => {
     if (data.type === 'state') {
@@ -220,55 +205,10 @@ const GameCanvas = () => {
     return group;
   };
 
-  // UI handlers
-  const onApplyServer = (e) => {
-    e.preventDefault();
-    const form = e.target;
-    const val = form.server && form.server.value.trim();
-    if (!val) return;
-    localStorage.setItem('gameServer', val);
-    setServerUrl(val);
-  };
-
-  const onClearServer = () => {
-    localStorage.removeItem('gameServer');
-    setServerUrl('');
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) wsRef.current.close();
-  };
-
-  // new: manual reconnect handler
-  const onReconnect = () => {
-    if (!serverUrl) return;
-    if (connectWsRef.current) {
-      connectWsRef.current(serverUrl);
-    } else {
-      // defensive: try setting status and wait for effect to populate ref
-      setStatus('connecting');
-      setTimeout(() => {
-        try { connectWsRef.current && connectWsRef.current(serverUrl); } catch (e) {}
-      }, 100);
-    }
-  };
-
-  return (
-    <div className="game-canvas" ref={containerRef}>
-      <div className="server-overlay">
-        <form onSubmit={onApplyServer}>
-          <input name="server" defaultValue={serverUrl} placeholder="ws://your-ip:8080 or wss://host:port" />
-          <button type="submit">Connect</button>
-          <button type="button" onClick={onClearServer}>Clear</button>
-          {/* show reconnect when there's a server set but no active connection */}
-          {serverUrl && status !== 'connected' && (
-            <button type="button" onClick={onReconnect} style={{ marginLeft: 6 }}>
-              Reconnect
-            </button>
-          )}
-        </form>
-        <div className="status">Status: {status}{serverUrl ? ` — ${serverUrl}` : ''}</div>
-        <div className="hint">If your server runs on your machine and you are visiting the page from GitHub Pages, set the server to ws://YOUR_PUBLIC_IP:8080 or use a tunnel (ngrok) and enter its wss:// address.</div>
-      </div>
-    </div>
-  );
+  // no UI handlers — always connecting to localhost
+ 
+  // simplified UI — just the canvas container
+  return <div className="game-canvas" ref={containerRef} />;
 };
 
 export default GameCanvas;
