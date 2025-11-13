@@ -201,7 +201,8 @@ const GameCanvas = () => {
         }
         // Update position and rotation
         objects[myPlayer.id].position.set(myPlayer.x, myPlayer.y, 0);
-        objects[myPlayer.id].rotation.z = myPlayer.rotation;
+        // Invert rotation for visual to match movement direction
+        objects[myPlayer.id].rotation.z = -myPlayer.rotation;
       }
 
       // Remove any objects that aren't the local player
