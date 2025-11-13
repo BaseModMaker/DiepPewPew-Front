@@ -11,6 +11,7 @@ const GameCanvas = () => {
   const connectWsRef = useRef(null);
   const keysPressed = useRef({});
   const gameObjects = useRef({});
+  const myPlayerIdRef = useRef(null); // track local player ID
   // always connect to localhost per request
   const serverAddress = 'ws://localhost:8080';
   const [status, setStatus] = useState('disconnected');
@@ -19,6 +20,18 @@ const GameCanvas = () => {
     // Scene setup
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x000510);
+
+    // Add grid lines to background
+    const gridSize = 100;
+    const gridDivisions = 20;
+    const gridColor = 0x222244;
+    const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, gridColor, gridColor);
+    gridHelper.material.opacity = 0.5;
+    gridHelper.material.transparent = true;
+    // Ensure grid is on the XY plane at z=0
+    gridHelper.rotation.x = Math.PI / 2;
+    gridHelper.position.z = 0;
+    scene.add(gridHelper);
 
     const camera = new THREE.PerspectiveCamera(
       75,
@@ -71,6 +84,10 @@ const GameCanvas = () => {
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          // capture player ID from welcome message
+          if (data.type === 'welcome') {
+            myPlayerIdRef.current = data.id;
+          }
           updateGameState(data, scene, gameObjects.current);
         } catch (e) {
           console.error('Invalid message', e);
@@ -135,6 +152,15 @@ const GameCanvas = () => {
     // Animation loop
     const animate = () => {
       requestAnimationFrame(animate);
+      
+      // Update camera to follow player
+      const myPlayerId = myPlayerIdRef.current;
+      if (myPlayerId && gameObjects.current[myPlayerId]) {
+        const myPlayer = gameObjects.current[myPlayerId];
+        camera.position.x = myPlayer.position.x;
+        camera.position.y = myPlayer.position.y;
+      }
+      
       composer.render();
     };
     animate();
@@ -164,18 +190,23 @@ const GameCanvas = () => {
 
   const updateGameState = (data, scene, objects) => {
     if (data.type === 'state') {
-      // Update players
-      data.players.forEach(player => {
-        if (!objects[player.id]) {
-          objects[player.id] = createShip(scene, player.isMe);
+      // Only update local player (isMe === true)
+      const myPlayer = data.players.find(p => p.isMe);
+      
+      if (myPlayer) {
+        // Create ship if it doesn't exist
+        if (!objects[myPlayer.id]) {
+          objects[myPlayer.id] = createShip(scene, true);
+          myPlayerIdRef.current = myPlayer.id; // ensure we track the correct ID
         }
-        objects[player.id].position.set(player.x, player.y, 0);
-        objects[player.id].rotation.z = player.rotation;
-      });
+        // Update position and rotation
+        objects[myPlayer.id].position.set(myPlayer.x, myPlayer.y, 0);
+        objects[myPlayer.id].rotation.z = myPlayer.rotation;
+      }
 
-      // Remove disconnected players
+      // Remove any objects that aren't the local player
       Object.keys(objects).forEach(id => {
-        if (!data.players.find(p => p.id === id)) {
+        if (!myPlayer || id !== myPlayer.id) {
           scene.remove(objects[id]);
           delete objects[id];
         }
