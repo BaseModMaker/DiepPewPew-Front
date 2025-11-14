@@ -50,17 +50,17 @@ class Renderer {
 
   updateGameState(data, myPlayerId) {
     if (data.type === 'state') {
-      const myPlayer = data.players.find(p => p.isMe);
-      if (myPlayer) {
-        if (!this.gameObjects[myPlayer.id]) {
-          this.gameObjects[myPlayer.id] = this.createShip(true);
-          myPlayerId = myPlayer.id;
+      // Add/update all ships (players and bots)
+      data.players.forEach(p => {
+        if (!this.gameObjects[p.id]) {
+          this.gameObjects[p.id] = this.createShip(p.isMe, p.isBot);
         }
-        this.gameObjects[myPlayer.id].position.set(myPlayer.x, myPlayer.y, 0);
-        this.gameObjects[myPlayer.id].rotation.z = -myPlayer.rotation;
-      }
+        this.gameObjects[p.id].position.set(p.x, p.y, 0);
+        this.gameObjects[p.id].rotation.z = -p.rotation;
+      });
+      // Remove ships that no longer exist
       Object.keys(this.gameObjects).forEach(id => {
-        if (!myPlayer || id !== myPlayer.id) {
+        if (!data.players.find(p => p.id === id)) {
           this.scene.remove(this.gameObjects[id]);
           delete this.gameObjects[id];
         }
@@ -68,8 +68,9 @@ class Renderer {
     }
   }
 
-  createShip(isMe) {
+  createShip(isMe, isBot) {
     const group = new THREE.Group();
+    group.userData = { isMe, isBot };
     const geometry = new THREE.BufferGeometry();
     const vertices = new Float32Array([
       0, 1.5, 0,
@@ -78,7 +79,9 @@ class Renderer {
       0, 1.5, 0
     ]);
     geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-    const color = isMe ? 0x00ffff : 0xff00ff;
+    let color = 0x00ffff;
+    if (isBot) color = 0xff2222;
+    else if (!isMe) color = 0xff00ff;
     const material = new THREE.LineBasicMaterial({ color });
     const ship = new THREE.Line(geometry, material);
     group.add(ship);
@@ -89,11 +92,30 @@ class Renderer {
   animate() {
     requestAnimationFrame(this.animate);
     // Camera follows local player
-    const ids = Object.keys(this.gameObjects);
-    if (ids.length > 0) {
-      const obj = this.gameObjects[ids[0]];
-      this.camera.position.x = obj.position.x;
-      this.camera.position.y = obj.position.y;
+    let myObj = null;
+    for (const id in this.gameObjects) {
+      const obj = this.gameObjects[id];
+      // Find the object that isMe
+      if (obj.userData && obj.userData.isMe) {
+        myObj = obj;
+        break;
+      }
+    }
+    // Fallback: find by color (cyan) if userData is not set
+    if (!myObj) {
+      for (const id in this.gameObjects) {
+        const obj = this.gameObjects[id];
+        if (
+          obj.children[0]?.material?.color?.getHex() === 0x00ffff
+        ) {
+          myObj = obj;
+          break;
+        }
+      }
+    }
+    if (myObj) {
+      this.camera.position.x = myObj.position.x;
+      this.camera.position.y = myObj.position.y;
     }
     this.composer.render();
   }
