@@ -5,7 +5,8 @@ import './GameCanvas.css';
 
 const GameCanvas = () => {
   const containerRef = useRef(null);
-  const [status, setStatus] = useState('disconnected');
+  // eslint-disable-next-line no-unused-vars
+  const [status, setStatus] = useState('disconnected'); // 'status' is assigned a value but never used
   const gameClientRef = useRef(null);
   const rendererRef = useRef(null);
 
